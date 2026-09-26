@@ -11,6 +11,7 @@ public class LetterManager : MinigameBehavior
     [SerializeField] private LetterData currentLetter;
     [SerializeField] private TextMeshProUGUI letterBodyText;
     [SerializeField] private RectTransform letterPaperRect;
+    [SerializeField] private RectTransform paperSealRect;
 
     [Header("Word Bank")]
     [SerializeField] private RectTransform wordBankPanel;
@@ -18,40 +19,20 @@ public class LetterManager : MinigameBehavior
     [SerializeField] private GameObject wordButtonPrefab;
     [SerializeField] private TextMeshProUGUI blankProgressText;
 
-    [Header("Mood Sprites")]
-    [SerializeField] private Sprite heartSprite;
-    [SerializeField] private Sprite leafSprite;
-    [SerializeField] private Sprite moonSprite;
-    [SerializeField] private Sprite sunSprite;
-    [SerializeField] private Sprite pushpinSprite;
-    [SerializeField] private Sprite waxSealSprite;
-
-    [Header("Mood Tracker HUD")]
-    [SerializeField] private RectTransform moodTrackerPanel;
-    [SerializeField] private RectTransform heartChibi;
-    [SerializeField] private RectTransform leafChibi;
-    [SerializeField] private RectTransform moonChibi;
-    [SerializeField] private RectTransform sunChibi;
-    [SerializeField] private TextMeshProUGUI heartCountText;
-    [SerializeField] private TextMeshProUGUI leafCountText;
-    [SerializeField] private TextMeshProUGUI moonCountText;
-    [SerializeField] private TextMeshProUGUI sunCountText;
-    [SerializeField] private TextMeshProUGUI floatingFeedbackText;
-
     [Header("Seal & Results")]
     [SerializeField] private Button sealButton;
     [SerializeField] private RectTransform sealButtonRect;
     [SerializeField] private GameObject resultsPanel;
-    [SerializeField] private TextMeshProUGUI resultMoodTitle;
-    [SerializeField] private TextMeshProUGUI resultMoodDesc;
-    [SerializeField] private TextMeshProUGUI resultStatsText;
+    [SerializeField] private TextMeshProUGUI resultTitle;
+    [SerializeField] private TextMeshProUGUI resultDesc;
     [SerializeField] private Button rewriteButton;
+    [SerializeField] private Button closeButton;
 
     // Runtime state
     private int currentBlankIndex = 0;
     private string[] filledWords;
-    private readonly Dictionary<LetterMoodType, int> moodScores = new Dictionary<LetterMoodType, int>();
-    private Coroutine feedbackCoroutine;
+    private bool isStamping = false;
+    private Coroutine sealAnimationCoroutine;
 
     private void Awake()
     {
@@ -63,6 +44,11 @@ public class LetterManager : MinigameBehavior
         if (rewriteButton != null)
         {
             rewriteButton.onClick.AddListener(ResetMinigame);
+        }
+
+        if (closeButton != null)
+        {
+            closeButton.onClick.AddListener(CloseResults);
         }
     }
 
@@ -89,19 +75,21 @@ public class LetterManager : MinigameBehavior
 
     public void ResetMinigame()
     {
+        isStamping = false;
+        if (sealAnimationCoroutine != null)
+        {
+            StopCoroutine(sealAnimationCoroutine);
+            sealAnimationCoroutine = null;
+        }
+
         if (resultsPanel != null) resultsPanel.SetActive(false);
         if (sealButton != null) sealButton.gameObject.SetActive(false);
-
-        moodScores[LetterMoodType.Affectionate] = 0;
-        moodScores[LetterMoodType.Melancholic] = 0;
-        moodScores[LetterMoodType.Somber] = 0;
-        moodScores[LetterMoodType.Passionate] = 0;
+        if (paperSealRect != null) paperSealRect.gameObject.SetActive(false);
 
         int blankCount = currentLetter != null ? currentLetter.BlankCount : 0;
         filledWords = new string[blankCount];
         currentBlankIndex = 0;
 
-        UpdateMoodUI();
         UpdateLetterDisplay();
         LoadCurrentWordBank();
     }
@@ -134,13 +122,12 @@ public class LetterManager : MinigameBehavior
             // All blanks filled!
             if (blankProgressText != null)
             {
-                blankProgressText.text = "All blanks filled! Ready to seal.";
+                blankProgressText.text = "Letter Complete!\nTap the wax seal to stamp your letter.";
             }
 
             if (sealButton != null)
             {
                 sealButton.gameObject.SetActive(true);
-                StartCoroutine(AnimateSealButtonEntrance());
             }
             return;
         }
@@ -187,11 +174,9 @@ public class LetterManager : MinigameBehavior
         GameObject btnObj = Instantiate(wordButtonPrefab, wordButtonsContainer);
         LetterWordButton btnScript = btnObj.GetComponent<LetterWordButton>();
 
-        Sprite moodSprite = GetMoodSprite(choice.mood);
-
         if (btnScript != null)
         {
-            btnScript.Setup(choice, SelectWord, moodSprite, pushpinSprite);
+            btnScript.Setup(choice, SelectWord);
         }
         else
         {
@@ -206,18 +191,6 @@ public class LetterManager : MinigameBehavior
         }
     }
 
-    private Sprite GetMoodSprite(LetterMoodType mood)
-    {
-        switch (mood)
-        {
-            case LetterMoodType.Affectionate: return heartSprite;
-            case LetterMoodType.Melancholic: return leafSprite;
-            case LetterMoodType.Somber: return moonSprite;
-            case LetterMoodType.Passionate: return sunSprite;
-            default: return null;
-        }
-    }
-
     public void SelectWord(WordChoice choice)
     {
         if (currentBlankIndex >= filledWords.Length) return;
@@ -225,145 +198,14 @@ public class LetterManager : MinigameBehavior
         // Fill blank
         filledWords[currentBlankIndex] = choice.word;
 
-        // Tally mood
-        moodScores[choice.mood] += choice.points;
-
-        // DDLC-style Chibi reaction
-        TriggerMoodJump(choice.mood, choice.word);
-
         // Advance to next blank
         currentBlankIndex++;
 
-        UpdateMoodUI();
         UpdateLetterDisplay();
         LoadCurrentWordBank();
     }
 
-    private void TriggerMoodJump(LetterMoodType mood, string word)
-    {
-        RectTransform targetChibi = null;
-        string moodName = "";
-        Color moodCol = Color.white;
-
-        switch (mood)
-        {
-            case LetterMoodType.Affectionate:
-                targetChibi = heartChibi;
-                moodName = "Affectionate";
-                moodCol = new Color(0.95f, 0.45f, 0.65f);
-                break;
-            case LetterMoodType.Melancholic:
-                targetChibi = leafChibi;
-                moodName = "Melancholy";
-                moodCol = new Color(0.40f, 0.75f, 0.45f);
-                break;
-            case LetterMoodType.Somber:
-                targetChibi = moonChibi;
-                moodName = "Somber";
-                moodCol = new Color(0.45f, 0.60f, 0.90f);
-                break;
-            case LetterMoodType.Passionate:
-                targetChibi = sunChibi;
-                moodName = "Passionate";
-                moodCol = new Color(0.95f, 0.70f, 0.20f);
-                break;
-        }
-
-        if (targetChibi != null)
-        {
-            StartCoroutine(AnimateChibiJump(targetChibi));
-        }
-
-        if (floatingFeedbackText != null)
-        {
-            if (feedbackCoroutine != null) StopCoroutine(feedbackCoroutine);
-            feedbackCoroutine = StartCoroutine(AnimateFloatingFeedback($"+1 {moodName} ({word})", moodCol));
-        }
-    }
-
-    private IEnumerator AnimateChibiJump(RectTransform chibi)
-    {
-        Vector2 startPos = chibi.anchoredPosition;
-        float elapsed = 0f;
-        float duration = 0.35f;
-
-        while (elapsed < duration)
-        {
-            elapsed += Time.unscaledDeltaTime;
-            float t = elapsed / duration;
-            float height = Mathf.Sin(t * Mathf.PI) * 22f;
-            float scale = 1f + Mathf.Sin(t * Mathf.PI) * 0.25f;
-
-            chibi.anchoredPosition = startPos + new Vector2(0, height);
-            chibi.localScale = new Vector3(scale, scale, 1f);
-            yield return null;
-        }
-
-        chibi.anchoredPosition = startPos;
-        chibi.localScale = Vector3.one;
-    }
-
-    private IEnumerator AnimateFloatingFeedback(string message, Color col)
-    {
-        floatingFeedbackText.text = message;
-        floatingFeedbackText.color = col;
-        floatingFeedbackText.gameObject.SetActive(true);
-
-        RectTransform rt = floatingFeedbackText.rectTransform;
-        Vector2 startPos = new Vector2(0, -10);
-        rt.anchoredPosition = startPos;
-
-        float elapsed = 0f;
-        float duration = 1.1f;
-
-        while (elapsed < duration)
-        {
-            elapsed += Time.unscaledDeltaTime;
-            float t = elapsed / duration;
-            rt.anchoredPosition = startPos + new Vector2(0, t * 25f);
-
-            float alpha = 1f;
-            if (t > 0.6f)
-            {
-                alpha = Mathf.Lerp(1f, 0f, (t - 0.6f) / 0.4f);
-            }
-            floatingFeedbackText.color = new Color(col.r, col.g, col.b, alpha);
-            yield return null;
-        }
-
-        floatingFeedbackText.gameObject.SetActive(false);
-    }
-
-    private IEnumerator AnimateSealButtonEntrance()
-    {
-        if (sealButtonRect == null) yield break;
-
-        sealButtonRect.localScale = Vector3.zero;
-        float elapsed = 0f;
-        float duration = 0.4f;
-
-        while (elapsed < duration)
-        {
-            elapsed += Time.unscaledDeltaTime;
-            float t = elapsed / duration;
-            // Overshoot bounce
-            float scale = Mathf.Sin(t * Mathf.PI * 0.7f) * 1.15f;
-            if (t >= 0.8f) scale = Mathf.Lerp(scale, 1.0f, (t - 0.8f) / 0.2f);
-
-            sealButtonRect.localScale = new Vector3(scale, scale, 1f);
-            yield return null;
-        }
-
-        sealButtonRect.localScale = Vector3.one;
-    }
-
-    private void UpdateMoodUI()
-    {
-        if (heartCountText != null) heartCountText.text = moodScores[LetterMoodType.Affectionate].ToString();
-        if (leafCountText != null) leafCountText.text = moodScores[LetterMoodType.Melancholic].ToString();
-        if (moonCountText != null) moonCountText.text = moodScores[LetterMoodType.Somber].ToString();
-        if (sunCountText != null) sunCountText.text = moodScores[LetterMoodType.Passionate].ToString();
-    }
+   
 
     private void UpdateLetterDisplay()
     {
@@ -385,18 +227,18 @@ public class LetterManager : MinigameBehavior
                 // Blank i
                 if (!string.IsNullOrEmpty(filledWords[i]))
                 {
-                    // Yellow highlighter marker tape effect
-                    sb.Append($"<mark=#F5D66ECC><color=#24170D><b> {filledWords[i]} </b></color></mark>");
+                    // Clean handwritten navy pen ink, underlined and bold for high legibility
+                    sb.Append($"<b><u><color=#153B6B>{filledWords[i]}</color></u></b>");
                 }
                 else if (i == currentBlankIndex)
                 {
-                    // Active blank - warm highlighted dashed line
-                    sb.Append("<color=#C4831B><b><u>  ............  </u></b></color>");
+                    // Active blank - clear, visible line in warm terracotta ink (using non-breaking spaces for continuous solid underline)
+                    sb.Append("<color=#A03E15><b><u>\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0</u></b></color>");
                 }
                 else
                 {
-                    // Future blank - subtle dotted line
-                    sb.Append("<color=#9E8D7A><u>............</u></color>");
+                    // Future blank - subtle clean underline
+                    sb.Append("<color=#7A6C5E><u>\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0</u></color>");
                 }
             }
         }
@@ -406,8 +248,12 @@ public class LetterManager : MinigameBehavior
 
     private void OnSealButtonClicked()
     {
+        if (isStamping) return;
+        if (sealAnimationCoroutine != null) StopCoroutine(sealAnimationCoroutine);
         ShowResults();
     }
+
+    
 
     private void ShowResults()
     {
@@ -415,59 +261,22 @@ public class LetterManager : MinigameBehavior
 
         resultsPanel.SetActive(true);
 
-        // Determine dominant mood
-        LetterMoodType dominant = LetterMoodType.Affectionate;
-        int maxScore = -1;
-        int totalPoints = 0;
-
-        foreach (var kvp in moodScores)
+        if (resultTitle != null)
         {
-            totalPoints += kvp.Value;
-            if (kvp.Value > maxScore)
-            {
-                maxScore = kvp.Value;
-                dominant = kvp.Key;
-            }
+            resultTitle.text = "Letter Sealed";
         }
 
-        string title = "";
-        string desc = "";
-
-        switch (dominant)
+        if (resultDesc != null)
         {
-            case LetterMoodType.Affectionate:
-                title = "Dominant Tone: Tender Affection";
-                desc = "Your letter overflows with warmth, intimacy, and heartfelt care. The recipient will clutch it to their chest, touched by your gentle devotion.";
-                break;
-            case LetterMoodType.Melancholic:
-                title = "Dominant Tone: Wistful Melancholy";
-                desc = "Your words carry the fragrance of quiet longing and sweet nostalgia. Reading it feels like watching autumn leaves fall softly on empty stone.";
-                break;
-            case LetterMoodType.Somber:
-                title = "Dominant Tone: Somber Mystery";
-                desc = "Your letter holds a solemn, haunting depth. It whispers of unspoken truths, lingering shadows, and quiet endurance through cold nights.";
-                break;
-            case LetterMoodType.Passionate:
-                title = "Dominant Tone: Fiery Passion";
-                desc = "Your letter blazes with intense emotion, vivid memories, and unwavering fervor. The recipient's heart will race with every vibrant sentence.";
-                break;
+            resultDesc.text = "Your letter has been lovingly written and sealed with wax, ready to be delivered.";
         }
+    }
 
-        if (resultMoodTitle != null) resultMoodTitle.text = title;
-        if (resultMoodDesc != null) resultMoodDesc.text = desc;
-
-        if (resultStatsText != null)
+    public void CloseResults()
+    {
+        if (resultsPanel != null)
         {
-            int aff = moodScores[LetterMoodType.Affectionate];
-            int mel = moodScores[LetterMoodType.Melancholic];
-            int som = moodScores[LetterMoodType.Somber];
-            int pas = moodScores[LetterMoodType.Passionate];
-
-            float t = Mathf.Max(1, totalPoints);
-            resultStatsText.text = $"Affectionate: {aff} ({(aff * 100f / t):F0}%)\n" +
-                                   $"Melancholic: {mel} ({(mel * 100f / t):F0}%)\n" +
-                                   $"Somber: {som} ({(som * 100f / t):F0}%)\n" +
-                                   $"Passionate: {pas} ({(pas * 100f / t):F0}%)";
+            resultsPanel.SetActive(false);
         }
     }
 }

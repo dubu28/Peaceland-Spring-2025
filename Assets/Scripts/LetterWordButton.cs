@@ -8,66 +8,56 @@ public class LetterWordButton : MonoBehaviour, IPointerEnterHandler, IPointerExi
 {
     [SerializeField] private Button button;
     [SerializeField] private TextMeshProUGUI wordLabel;
-    [SerializeField] private Image moodIcon;
-    [SerializeField] private Image pushpinIcon;
     [SerializeField] private RectTransform cardRoot;
 
     private WordChoice currentChoice;
     private Action<WordChoice> onSelectedCallback;
     private Vector3 originalScale = Vector3.one;
-    private Quaternion originalRotation = Quaternion.identity;
     private float targetScale = 1f;
 
     private void Awake()
     {
+        EnsureInitialized();
+    }
+
+    private void EnsureInitialized()
+    {
         if (button == null) button = GetComponent<Button>();
         if (cardRoot == null) cardRoot = GetComponent<RectTransform>();
-        if (cardRoot != null)
+        if (cardRoot != null && originalScale == Vector3.one)
         {
             originalScale = cardRoot.localScale;
-            originalRotation = cardRoot.localRotation;
-        }
-
-        if (button != null)
-        {
-            button.onClick.AddListener(HandleClicked);
         }
     }
 
-    public void Setup(WordChoice choice, Action<WordChoice> onSelected, Sprite moodSprite, Sprite pushpinSprite)
+    public void Setup(WordChoice choice, Action<WordChoice> onSelected)
     {
+        EnsureInitialized();
         currentChoice = choice;
         onSelectedCallback = onSelected;
+
+        if (button != null)
+        {
+            button.onClick.RemoveListener(HandleClicked);
+            button.onClick.AddListener(HandleClicked);
+        }
 
         if (wordLabel != null && choice != null)
         {
             wordLabel.text = choice.word;
         }
 
-        if (moodIcon != null)
-        {
-            if (moodSprite != null)
-            {
-                moodIcon.sprite = moodSprite;
-                moodIcon.gameObject.SetActive(true);
-            }
-            else
-            {
-                moodIcon.gameObject.SetActive(false);
-            }
-        }
-
-        if (pushpinIcon != null && pushpinSprite != null)
-        {
-            pushpinIcon.sprite = pushpinSprite;
-        }
-
         targetScale = 1f;
         if (cardRoot != null)
         {
             cardRoot.localScale = originalScale;
-            cardRoot.localRotation = originalRotation;
         }
+    }
+
+    // Overload for backwards compatibility
+    public void Setup(WordChoice choice, Action<WordChoice> onSelected, Sprite moodSprite, Sprite pushpinSprite)
+    {
+        Setup(choice, onSelected);
     }
 
     private void Update()
@@ -80,6 +70,7 @@ public class LetterWordButton : MonoBehaviour, IPointerEnterHandler, IPointerExi
 
     private void HandleClicked()
     {
+        targetScale = 1.0f;
         if (currentChoice != null && onSelectedCallback != null)
         {
             onSelectedCallback.Invoke(currentChoice);
@@ -88,7 +79,7 @@ public class LetterWordButton : MonoBehaviour, IPointerEnterHandler, IPointerExi
 
     public void OnPointerEnter(PointerEventData eventData)
     {
-        targetScale = 1.06f;
+        targetScale = 1.04f;
     }
 
     public void OnPointerExit(PointerEventData eventData)
@@ -98,11 +89,13 @@ public class LetterWordButton : MonoBehaviour, IPointerEnterHandler, IPointerExi
 
     public void OnPointerDown(PointerEventData eventData)
     {
-        targetScale = 0.96f;
+        // Tactile touch & click feedback
+        targetScale = 0.94f;
     }
 
     public void OnPointerUp(PointerEventData eventData)
     {
-        targetScale = 1.06f;
+        // On touch release, always return to normal scale (prevents sticky hover on mobile)
+        targetScale = 1.0f;
     }
 }

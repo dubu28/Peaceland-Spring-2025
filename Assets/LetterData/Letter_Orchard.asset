@@ -35,7 +35,7 @@ MonoBehaviour:
   - 
   blanks:
   - blankId: b0
-    placeholder: ............
+    placeholder: _______
     choices:
     - word: fever
       mood: 2
@@ -50,7 +50,7 @@ MonoBehaviour:
       mood: 3
       points: 1
   - blankId: b1
-    placeholder: ............
+    placeholder: _______
     choices:
     - word: blue
       mood: 1
@@ -65,7 +65,7 @@ MonoBehaviour:
       mood: 2
       points: 1
   - blankId: b2
-    placeholder: ............
+    placeholder: _______
     choices:
     - word: smiled at me
       mood: 0
@@ -80,7 +80,7 @@ MonoBehaviour:
       mood: 3
       points: 1
   - blankId: b3
-    placeholder: ............
+    placeholder: _______
     choices:
     - word: peaceful
       mood: 0
@@ -95,7 +95,7 @@ MonoBehaviour:
       mood: 3
       points: 1
   - blankId: b4
-    placeholder: ............
+    placeholder: _______
     choices:
     - word: old orchard
       mood: 0
@@ -110,7 +110,7 @@ MonoBehaviour:
       mood: 3
       points: 1
   - blankId: b5
-    placeholder: ............
+    placeholder: _______
     choices:
     - word: tender
       mood: 0
@@ -125,7 +125,7 @@ MonoBehaviour:
       mood: 3
       points: 1
   - blankId: b6
-    placeholder: ............
+    placeholder: _______
     choices:
     - word: waiting
       mood: 0
