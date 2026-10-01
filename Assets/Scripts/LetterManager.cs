@@ -227,17 +227,17 @@ public class LetterManager : MinigameBehavior
                 // Blank i
                 if (!string.IsNullOrEmpty(filledWords[i]))
                 {
-                    // Clean handwritten navy pen ink, underlined and bold for high legibility
+                    
                     sb.Append($"<b><u><color=#153B6B>{filledWords[i]}</color></u></b>");
                 }
                 else if (i == currentBlankIndex)
                 {
-                    // Active blank - clear, visible line in warm terracotta ink (using non-breaking spaces for continuous solid underline)
+                    // Active blank 
                     sb.Append("<color=#A03E15><b><u>\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0</u></b></color>");
                 }
                 else
                 {
-                    // Future blank - subtle clean underline
+                    // Future blank 
                     sb.Append("<color=#7A6C5E><u>\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0</u></color>");
                 }
             }
@@ -250,26 +250,7 @@ public class LetterManager : MinigameBehavior
     {
         if (isStamping) return;
         if (sealAnimationCoroutine != null) StopCoroutine(sealAnimationCoroutine);
-        ShowResults();
-    }
-
-    
-
-    private void ShowResults()
-    {
-        if (resultsPanel == null) return;
-
-        resultsPanel.SetActive(true);
-
-        if (resultTitle != null)
-        {
-            resultTitle.text = "Letter Sealed";
-        }
-
-        if (resultDesc != null)
-        {
-            resultDesc.text = "Your letter has been lovingly written and sealed with wax, ready to be delivered.";
-        }
+        ResetMinigame();
     }
 
     public void CloseResults()
