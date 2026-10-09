@@ -63,7 +63,7 @@ namespace Peaceland.Notebook
 
         private int selectedChapterIndex = 0;
         private int currentCardPageIndex = 0;
-        private const int CardsPerPage = 3; // Exactly 3 cards per page matching the mockup!
+        private const int CardsPerPage = 2; 
         private bool isOpen = false;
         private bool isAnimating = false;
         private Coroutine toastCoroutine;
